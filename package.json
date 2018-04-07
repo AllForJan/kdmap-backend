@@ -12,6 +12,8 @@
     "express": "^4.16.3",
     "express-generator": "^4.16.0",
     "mysql": "^2.15.0",
+    "node-fetch": "^2.1.2",
+    "nodeQuery": "0.0.9-1",
     "request": "^2.85.0",
     "request-promise": "^4.2.2",
     "sync-request": "^6.0.0"

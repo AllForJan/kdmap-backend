@@ -41,7 +41,7 @@ exports.buildArcGisUrlIcoYear = function(data){
 
 exports.buildArcGisUrlPlace = function(data){
     if(data){
-        var place = encodeURIComponent(data);
+        var place = String(data);
         return `https://portal.vupop.sk/arcgis/rest/services/uzemne_clenenie/uzemne_clenenie/MapServer/1/query?where=NM2+LIKE+%27%25${place}%25%27&text=&objectIds=&time=&geometry=&geometryType=esriGeometryEnvelope&inSR=&spatialRel=esriSpatialRelEnvelopeIntersects&relationParam=&outFields=*&returnGeometry=true&returnTrueCurves=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&returnZ=false&returnM=false&gdbVersion=&returnDistinctValues=false&resultOffset=&resultRecordCount=10&f=pjson`
     }
 }

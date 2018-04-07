@@ -5,6 +5,9 @@ var fs = require("fs");
 var mysql = require('mysql');
 var utils = require('./utils.js');
 var rest_client = require('./rest_client.js');
+var rq = require('request');
+var querystring = require('querystring');
+
 
 const port = 8080;
 const mysql_host = "localhost";
@@ -26,101 +29,155 @@ var con = mysql.createConnection({
 });
 
 app.get('/findByIcoAndYear', function (req, res) {
-  var ico = req.query.ico.replace( /^\D+/g, '');
+  var ico = req.query.ico.replace(/^\D+/g, '');
   console.log(ico);
-  var year = req.query.year.replace( /^\D+/g, '');
+  var year = req.query.year.replace(/^\D+/g, '');
 
   retval = [];
 
   // con.connect(function(err) {
   //   if (err) throw err;
-    con.query(`select * from apa_ziadosti where ICO = ${ico} AND Rok = ${year};`, function (err, result, fields) {
-      if (err) throw err;
-      var gis_lokalita_diely = [];
-     
-      // map from sql DB
-      result.forEach(element => {
-        retval.push(utils.fromSqlToKD(element));
-      });
-      
-      // get unique LOKALITA values
-      var lokality = Array.from(new Set(retval.map(function(value,index) { return value.lokalita; })));
+  con.query(`select * from apa_ziadosti where ICO = ${ico} AND Rok = ${year};`, function (err, result, fields) {
+    if (err) throw err;
+    var gis_lokalita_diely = [];
 
-      // build LOKALITA IN (...) AND ZDKOD IN (...) array
-      lokality.forEach(l => {
-        var concrete_lokalita = retval.filter(element => element.lokalita == l);
-        var concrete_diel = Array.from(new Set(concrete_lokalita.map(function(value,index) { return value.diel; })));
-        gis_lokalita_diely.push(utils.buildLokalitaDielQuery(l, concrete_diel));
-      })
+    // map from sql DB
+    result.forEach(element => {
+      retval.push(utils.fromSqlToKD(element));
+    });
 
-      // call VUPOP
-      var vupop_data = [];
-      var batch_size = global_batch_size;
+    // get unique LOKALITA values
+    var lokality = Array.from(new Set(retval.map(function (value, index) { return value.lokalita; })));
 
-      console.log("VUPOP: calling for " + gis_lokalita_diely.length);
-      for(var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size){
-        console.log(i + "|" + i*batch_size);
-        console.log(gis_lokalita_diely.slice(i, i*batch_size));
-        var batch_arr = rest_client.findPolygons({hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i-1, i*batch_size)}, rest_client.TERM_ICO_YEAR);
+    // build LOKALITA IN (...) AND ZDKOD IN (...) array
+    lokality.forEach(l => {
+      var concrete_lokalita = retval.filter(element => element.lokalita == l);
+      var concrete_diel = Array.from(new Set(concrete_lokalita.map(function (value, index) { return value.diel; })));
+      gis_lokalita_diely.push(utils.buildLokalitaDielQuery(l, concrete_diel));
+    })
 
-        if(batch_arr && batch_arr.features){
-          batch_arr.features.forEach(e => {
-            vupop_data.push(e);
-          })
-        }
-      }
-      console.log("VUPOP: Found " + vupop_data.length + " features");
-      // join data with geometry
-      if(vupop_data){
-        retval.forEach(element =>{
-          f = vupop_data.find(f => f.properties.ZKODKD == element.diel && f.properties.LOKALITA == element.lokalita);
-          if (f != null){
-            element.feature = Array(f);
-          } else {
-            element.feature = [];
-          }
+    // call VUPOP
+    var vupop_data = [];
+    var batch_size = global_batch_size;
+
+    console.log("VUPOP: calling for " + gis_lokalita_diely.length);
+    for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
+      console.log(i + "|" + i * batch_size);
+      console.log(gis_lokalita_diely.slice(i, i * batch_size));
+      var batch_arr = rest_client.findPolygonsGet({ hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i - 1, i * batch_size) }, rest_client.TERM_ICO_YEAR);
+
+      if (batch_arr && batch_arr.features) {
+        batch_arr.features.forEach(e => {
+          vupop_data.push(e);
         })
       }
+    }
+    console.log("VUPOP: Found " + vupop_data.length + " features");
+    // join data with geometry
+    if (vupop_data) {
+      retval.forEach(element => {
+        f = vupop_data.find(f => f.properties.ZKODKD == element.diel && f.properties.LOKALITA == element.lokalita);
+        if (f != null) {
+          element.feature = Array(f);
+        } else {
+          element.feature = [];
+        }
+      })
+    }
 
-      setHeaders(res);
-      res.send(retval);
-      res.end();
-    });
+    setHeaders(res);
+    res.send(retval);
+    res.end();
+  });
   // });
 });
 
 app.get('/findByPlace', function (req, res) {
   var place = req.query.place;
-
+  var ticker = 0, max_tick = 2000000;
   retval = [];
-  
-  var batch_arr = rest_client.findPolygons({place}, rest_client.TERM_PLACE);
 
-    
+  // console.log(place);
+  var features = rest_client.findPolygonsGet(place, rest_client.TERM_PLACE);
+  var retval = [];
 
-  res.send(batch_arr);
-  
+  if(features && features.features){
+    features = features.features;
+    features.forEach(feature => {
+      findParts(retval, features, 0);
+    });
+  }
+  var table = [];
+  while(ticker < max_tick){
+    console.log(retval.length);
+    ticker += 1;
+  }
+  retval.forEach(item => {
+    element = (Math.round(item.properties['VYMERA'] * 100) / 100)
+  });
+  res.send(retval);
+
 });
 
-function setHeaders(res){
-   // Website you wish to allow to connect
-   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+function findParts(retval, features, i) {
+  console.log("call " + i);
+	if (features.length > 0 && features.length > i) {
+		var municipality_name = features[i].attributes.NM2;
+	
+    console.log('Requesting parts for ' + municipality_name);
+  
+    var res_body;
 
-   // Request methods you wish to allow
-   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    var form = {
+        geometry: JSON.stringify(features[i].geometry),
+        geometryType: 'esriGeometryPolygon',
+        outFields: '*',
+        inSR: 'geojson:0,1,3,4,5,6,7,8,9,10,12,24,27,30',
+        f: 'geojson'
+    };
+    
+    var formData = querystring.stringify(form);
+    var contentLength = formData.length;
 
-   // Request headers you wish to allow
-   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
-
-   // Set to true if you need the website to include cookies in the requests sent
-   // to the API (e.g. in case you use sessions)
-   res.setHeader('Access-Control-Allow-Credentials', true);
+    rq({
+        headers: {
+          'Content-Length': contentLength,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        uri: 'https://portal.vupop.sk/arcgis/rest/services/LPIS/Kulturne_diely/MapServer/0/query',
+        body: formData,
+        method: 'POST'
+      }, function (err, res, body) {
+        console.log("done");
+           retval.push(body);
+           findParts(retval, features, i + 1);
+            
+    });
+    // retval.push(rest_client.findPolygonsPost(features[i]));
+				
+		
+  }
 }
 
-/************ Init server ****************/ 
+function setHeaders(res) {
+  // Website you wish to allow to connect
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+
+  // Request methods you wish to allow
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+
+  // Request headers you wish to allow
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+
+  // Set to true if you need the website to include cookies in the requests sent
+  // to the API (e.g. in case you use sessions)
+  res.setHeader('Access-Control-Allow-Credentials', true);
+}
+
+/************ Init server ****************/
 var server = app.listen(port, function () {
   var host = server.address().address
   var port = server.address().port
-  
+
   console.log("KD map is listening at http://%s:%s\n", host, port)
 })
