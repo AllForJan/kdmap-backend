@@ -1,0 +1,19 @@
+{
+  "name": "kdmap",
+  "version": "1.0.0",
+  "description": "Hackathon Allforjan - vyhladavanie v kulturnych dieloch",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.3",
+    "express-generator": "^4.16.0",
+    "mysql": "^2.15.0",
+    "request": "^2.85.0",
+    "request-promise": "^4.2.2",
+    "sync-request": "^6.0.0"
+  }
+}
