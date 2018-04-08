@@ -5,24 +5,19 @@ var fs = require("fs");
 var mysql = require('mysql');
 var utils = require('./utils.js');
 var rest_client = require('./rest_client.js');
-
-const port = 8080;
-const mysql_host = "localhost";
-const mysql_user = "root";
-const mysql_password = "root";
-const mysql_db = "hackathon"
-const global_batch_size = 3;
+var config = require('./config.js');
 
 // TESTING PURPOSE //
-// var contents = fs.readFileSync("kd_sample.json");
+// var contents = fs.readFileSync("./data/kd_sample.json");
 // var jsonContent = JSON.parse(contents);
 // TESTING PURPOSE //
 
 var con = mysql.createConnection({
-  host: mysql_host,
-  user: mysql_user,
-  password: mysql_password,
-  database: mysql_db
+  host: config.db.host,
+  user: config.db.user,
+  password: config.db.password,
+  database: config.db.name,
+  port: config.db.port
 });
 
 app.get('/findByIcoAndYear', function (req, res) {
@@ -57,7 +52,7 @@ app.get('/findByIcoAndYear', function (req, res) {
 
         // call VUPOP
         var vupop_data = [];
-        var batch_size = global_batch_size;
+        var batch_size = config.batchSize;
 
         console.log("VUPOP: calling for " + gis_lokalita_diely.length);
         for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
@@ -164,7 +159,7 @@ async function findParts(features, i, year) {
 
 function setHeaders(res) {
   // Website you wish to allow to connect
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+  res.setHeader('Access-Control-Allow-Origin', config.server.allowedOrigins);
 
   // Request methods you wish to allow
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -178,7 +173,7 @@ function setHeaders(res) {
 }
 
 /************ Init server ****************/
-var server = app.listen(port, function () {
+var server = app.listen(config.server.port, function () {
   var host = server.address().address
   var port = server.address().port
 

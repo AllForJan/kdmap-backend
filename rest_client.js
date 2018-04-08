@@ -42,7 +42,7 @@ exports.findPolygonsPost = function (data, year) {
         outFields: '*',
         f: 'geojson'
     };
-    
+
     var formData = querystring.stringify(form);
     var contentLength = formData.length;
 
@@ -82,16 +82,16 @@ exports.findPolygonsPost = function (data, year) {
     return new Promise(function (resolve, reject) {
         rq({
             headers: {
-              'Content-Length': contentLength,
-              'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Length': contentLength,
+                'Content-Type': 'application/x-www-form-urlencoded'
             },
             uri: `https://portal.vupop.sk/arcgis/rest/services/LPIS/Historicke_vrstvy_${year}/MapServer/0/query`,
             body: formData,
             method: 'POST'
-          }, function (err, res, body) {
+        }, function (err, res, body) {
             resolve(body);
         });
-      });;
+    });;
 }
 
 
