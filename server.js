@@ -33,61 +33,62 @@ app.get('/findByIcoAndYear', function (req, res) {
     var year = req.query.year.replace(/^\D+/g, '');
 
     retval = [];
+    if (ico.length != 0) {
+      // con.connect(function(err) {
+      //   if (err) throw err;
+      con.query(`select * from apa_ziadosti where ICO = ${ico} AND Rok = ${year};`, function (err, result, fields) {
+        if (err) throw err;
+        var gis_lokalita_diely = [];
 
-    // con.connect(function(err) {
-    //   if (err) throw err;
-    con.query(`select * from apa_ziadosti where ICO = ${ico} AND Rok = ${year};`, function (err, result, fields) {
-      if (err) throw err;
-      var gis_lokalita_diely = [];
+        // map from sql DB
+        result.forEach(element => {
+          retval.push(utils.fromSqlToKD(element));
+        });
 
-      // map from sql DB
-      result.forEach(element => {
-        retval.push(utils.fromSqlToKD(element));
-      });
+        // get unique LOKALITA values
+        var lokality = Array.from(new Set(retval.map(function (value, index) { return value.lokalita; })));
 
-      // get unique LOKALITA values
-      var lokality = Array.from(new Set(retval.map(function (value, index) { return value.lokalita; })));
+        // build LOKALITA IN (...) AND ZDKOD IN (...) array
+        lokality.forEach(l => {
+          var concrete_lokalita = retval.filter(element => element.lokalita == l);
+          var concrete_diel = Array.from(new Set(concrete_lokalita.map(function (value, index) { return value.diel; })));
+          gis_lokalita_diely.push(utils.buildLokalitaDielQuery(l, concrete_diel));
+        })
 
-      // build LOKALITA IN (...) AND ZDKOD IN (...) array
-      lokality.forEach(l => {
-        var concrete_lokalita = retval.filter(element => element.lokalita == l);
-        var concrete_diel = Array.from(new Set(concrete_lokalita.map(function (value, index) { return value.diel; })));
-        gis_lokalita_diely.push(utils.buildLokalitaDielQuery(l, concrete_diel));
-      })
+        // call VUPOP
+        var vupop_data = [];
+        var batch_size = global_batch_size;
 
-      // call VUPOP
-      var vupop_data = [];
-      var batch_size = global_batch_size;
+        console.log("VUPOP: calling for " + gis_lokalita_diely.length);
+        for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
+          console.log(i + "|" + i * batch_size);
+          console.log(gis_lokalita_diely.slice(i, i * batch_size));
+          var batch_arr = rest_client.findPolygonsGet({ hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i - 1, i * batch_size) }, rest_client.TERM_ICO_YEAR);
 
-      console.log("VUPOP: calling for " + gis_lokalita_diely.length);
-      for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
-        console.log(i + "|" + i * batch_size);
-        console.log(gis_lokalita_diely.slice(i, i * batch_size));
-        var batch_arr = rest_client.findPolygonsGet({ hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i - 1, i * batch_size) }, rest_client.TERM_ICO_YEAR);
-
-        if (batch_arr && batch_arr.features) {
-          batch_arr.features.forEach(e => {
-            vupop_data.push(e);
+          if (batch_arr && batch_arr.features) {
+            batch_arr.features.forEach(e => {
+              vupop_data.push(e);
+            })
+          }
+        }
+        console.log("VUPOP: Found " + vupop_data.length + " features");
+        // join data with geometry
+        if (vupop_data) {
+          retval.forEach(element => {
+            f = vupop_data.find(f => f.properties.ZKODKD == element.diel && f.properties.LOKALITA == element.lokalita);
+            if (f != null) {
+              element.feature = Array(f);
+            } else {
+              element.feature = [];
+            }
           })
         }
-      }
-      console.log("VUPOP: Found " + vupop_data.length + " features");
-      // join data with geometry
-      if (vupop_data) {
-        retval.forEach(element => {
-          f = vupop_data.find(f => f.properties.ZKODKD == element.diel && f.properties.LOKALITA == element.lokalita);
-          if (f != null) {
-            element.feature = Array(f);
-          } else {
-            element.feature = [];
-          }
-        })
-      }
 
-      setHeaders(res);
-      res.send(retval);
-      res.end();
-    });
+      });
+    }
+    setHeaders(res);
+    res.send(retval);
+    res.end();
   }
 });
 
