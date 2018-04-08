@@ -26,8 +26,10 @@ var con = mysql.createConnection({
 });
 
 app.get('/findByIcoAndYear', function (req, res) {
+  if( !req.query.ico || !req.query.year){
+    res.send("ICO or year is missing");
+  }
   var ico = req.query.ico.replace(/^\D+/g, '');
-  console.log(ico);
   var year = req.query.year.replace(/^\D+/g, '');
 
   retval = [];
@@ -90,6 +92,10 @@ app.get('/findByIcoAndYear', function (req, res) {
 });
 
 app.get('/findByPlace', function (req, res) {
+  if( !req.query.place || !req.query.year){
+    res.send("Place or year is missing");
+    break;
+  }
   var place = encodeURIComponent(req.query.place);
   var year = req.query.year.replace(/^\D+/g, '');
 
