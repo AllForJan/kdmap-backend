@@ -14,13 +14,11 @@ exports.TERM_PLACE = 6
 exports.findPolygonsGet = function (data, term) {
     var req_arcgis_url = "";
     if (term == this.TERM_ICO_YEAR) {
-        console.log(JSON.stringify(data.lokalita_diely));
         req_arcgis_url = utils.buildArcGisUrlIcoYear(data);
     } else if (term == this.TERM_PLACE) {
         req_arcgis_url = utils.buildArcGisUrlPlace(data);
     }
-    // console.log(req_arcgis_url);
-
+    var body;
     var response = request('GET', req_arcgis_url);
     try {
         body = JSON.parse(response.getBody())
