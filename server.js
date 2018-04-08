@@ -26,136 +26,137 @@ var con = mysql.createConnection({
 });
 
 app.get('/findByIcoAndYear', function (req, res) {
-  if( !req.query.ico || !req.query.year){
+  if (!req.query.ico || !req.query.year) {
     res.send("ICO or year is missing");
-  }
-  var ico = req.query.ico.replace(/^\D+/g, '');
-  var year = req.query.year.replace(/^\D+/g, '');
+  } else {
+    var ico = req.query.ico.replace(/^\D+/g, '');
+    var year = req.query.year.replace(/^\D+/g, '');
 
-  retval = [];
+    retval = [];
 
-  // con.connect(function(err) {
-  //   if (err) throw err;
-  con.query(`select * from apa_ziadosti where ICO = ${ico} AND Rok = ${year};`, function (err, result, fields) {
-    if (err) throw err;
-    var gis_lokalita_diely = [];
+    // con.connect(function(err) {
+    //   if (err) throw err;
+    con.query(`select * from apa_ziadosti where ICO = ${ico} AND Rok = ${year};`, function (err, result, fields) {
+      if (err) throw err;
+      var gis_lokalita_diely = [];
 
-    // map from sql DB
-    result.forEach(element => {
-      retval.push(utils.fromSqlToKD(element));
-    });
+      // map from sql DB
+      result.forEach(element => {
+        retval.push(utils.fromSqlToKD(element));
+      });
 
-    // get unique LOKALITA values
-    var lokality = Array.from(new Set(retval.map(function (value, index) { return value.lokalita; })));
+      // get unique LOKALITA values
+      var lokality = Array.from(new Set(retval.map(function (value, index) { return value.lokalita; })));
 
-    // build LOKALITA IN (...) AND ZDKOD IN (...) array
-    lokality.forEach(l => {
-      var concrete_lokalita = retval.filter(element => element.lokalita == l);
-      var concrete_diel = Array.from(new Set(concrete_lokalita.map(function (value, index) { return value.diel; })));
-      gis_lokalita_diely.push(utils.buildLokalitaDielQuery(l, concrete_diel));
-    })
+      // build LOKALITA IN (...) AND ZDKOD IN (...) array
+      lokality.forEach(l => {
+        var concrete_lokalita = retval.filter(element => element.lokalita == l);
+        var concrete_diel = Array.from(new Set(concrete_lokalita.map(function (value, index) { return value.diel; })));
+        gis_lokalita_diely.push(utils.buildLokalitaDielQuery(l, concrete_diel));
+      })
 
-    // call VUPOP
-    var vupop_data = [];
-    var batch_size = global_batch_size;
+      // call VUPOP
+      var vupop_data = [];
+      var batch_size = global_batch_size;
 
-    console.log("VUPOP: calling for " + gis_lokalita_diely.length);
-    for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
-      console.log(i + "|" + i * batch_size);
-      console.log(gis_lokalita_diely.slice(i, i * batch_size));
-      var batch_arr = rest_client.findPolygonsGet({ hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i - 1, i * batch_size) }, rest_client.TERM_ICO_YEAR);
+      console.log("VUPOP: calling for " + gis_lokalita_diely.length);
+      for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
+        console.log(i + "|" + i * batch_size);
+        console.log(gis_lokalita_diely.slice(i, i * batch_size));
+        var batch_arr = rest_client.findPolygonsGet({ hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i - 1, i * batch_size) }, rest_client.TERM_ICO_YEAR);
 
-      if (batch_arr && batch_arr.features) {
-        batch_arr.features.forEach(e => {
-          vupop_data.push(e);
+        if (batch_arr && batch_arr.features) {
+          batch_arr.features.forEach(e => {
+            vupop_data.push(e);
+          })
+        }
+      }
+      console.log("VUPOP: Found " + vupop_data.length + " features");
+      // join data with geometry
+      if (vupop_data) {
+        retval.forEach(element => {
+          f = vupop_data.find(f => f.properties.ZKODKD == element.diel && f.properties.LOKALITA == element.lokalita);
+          if (f != null) {
+            element.feature = Array(f);
+          } else {
+            element.feature = [];
+          }
         })
       }
-    }
-    console.log("VUPOP: Found " + vupop_data.length + " features");
-    // join data with geometry
-    if (vupop_data) {
-      retval.forEach(element => {
-        f = vupop_data.find(f => f.properties.ZKODKD == element.diel && f.properties.LOKALITA == element.lokalita);
-        if (f != null) {
-          element.feature = Array(f);
-        } else {
-          element.feature = [];
-        }
-      })
-    }
 
-    setHeaders(res);
-    res.send(retval);
-    res.end();
-  });
-  // });
+      setHeaders(res);
+      res.send(retval);
+      res.end();
+    });
+  }
 });
 
 app.get('/findByPlace', function (req, res) {
-  if( !req.query.place || !req.query.year){
+  if (!req.query.place || !req.query.year) {
     res.send("Place or year is missing");
-    break;
-  }
-  var place = encodeURIComponent(req.query.place);
-  var year = req.query.year.replace(/^\D+/g, '');
+  } else {
 
-  retval = [];
+    var place = encodeURIComponent(req.query.place);
+    var year = req.query.year.replace(/^\D+/g, '');
 
-  // console.log(place);
-  var features = rest_client.findPolygonsGet(place, rest_client.TERM_PLACE);
-  var retval = [];
+    retval = [];
 
-  if(features && features.features){
-    features = features.features;
-    var i = 0;
-    features.forEach(feature => {
-      retval.push(findParts(features, i, year));
-      i += 1;
-    });
-  }
-  
-  var final_items_arr = [];
+    // console.log(place);
+    var features = rest_client.findPolygonsGet(place, rest_client.TERM_PLACE);
+    var retval = [];
 
-  retval.forEach(p => {
-    p.then((body) => {
-      if(body){
-      try {
-        var json_body = JSON.parse(body);
+    if (features && features.features) {
+      features = features.features;
+      var i = 0;
+      features.forEach(feature => {
+        retval.push(findParts(features, i, year));
+        i += 1;
+      });
+    }
 
-        if(json_body && json_body.features){
-          json_body.features.forEach(feature => {
-            var new_item = {
-              ziadatel: "", 
-              rok: feature.properties['ROK'], 
-              ico: "",
-              lokalita:feature.properties['LOKALITA'],
-              diel: feature.properties['ZKODKD'],
-              kultura: feature.properties['KULTURA'],
-              vymera: (Math.round(feature.properties['VYMERA'] * 100) / 100),
-              feature: [feature]
+    var final_items_arr = [];
+
+    retval.forEach(p => {
+      p.then((body) => {
+        if (body) {
+          try {
+            var json_body = JSON.parse(body);
+
+            if (json_body && json_body.features) {
+              json_body.features.forEach(feature => {
+                var new_item = {
+                  ziadatel: "",
+                  rok: feature.properties['ROK'],
+                  ico: "",
+                  lokalita: feature.properties['LOKALITA'],
+                  diel: feature.properties['ZKODKD'],
+                  kultura: feature.properties['KULTURA'],
+                  vymera: (Math.round(feature.properties['VYMERA'] * 100) / 100),
+                  feature: [feature]
+                }
+                final_items_arr.push(new_item);
+              });
             }
-            final_items_arr.push(new_item);
-          });
+          } catch (error) {
+            console.log("PARSING obce - error occurred.");
+            throw error;
+          }
         }
-      } catch (error) {
-        console.log("PARSING obce - error occurred." );
-        throw error;
-      }
-      }
-      setHeaders(res);
-      res.send(final_items_arr);
+        setHeaders(res);
+        res.send(final_items_arr);
+      });
     });
-  });
+  }
 });
 
 async function findParts(features, i, year) {
-	if (features.length > 0 && features.length > i) {
-		var municipality_name = features[i].attributes.NM2;
-	
+  if (features.length > 0 && features.length > i) {
+    var municipality_name = features[i].attributes.NM2;
+
     console.log('Requesting parts for ' + municipality_name);
-  
+
     let a = await rest_client.findPolygonsPost(features[i], year);
-   
+
     return a;
   }
 }
