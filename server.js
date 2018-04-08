@@ -5,9 +5,6 @@ var fs = require("fs");
 var mysql = require('mysql');
 var utils = require('./utils.js');
 var rest_client = require('./rest_client.js');
-var rq = require('request');
-var querystring = require('querystring');
-
 
 const port = 8080;
 const mysql_host = "localhost";
@@ -93,8 +90,9 @@ app.get('/findByIcoAndYear', function (req, res) {
 });
 
 app.get('/findByPlace', function (req, res) {
-  var place = req.query.place;
-  var ticker = 0, max_tick = 2000000;
+  var place = encodeURIComponent(req.query.place);
+  var year = req.query.year.replace(/^\D+/g, '');
+
   retval = [];
 
   // console.log(place);
@@ -103,59 +101,56 @@ app.get('/findByPlace', function (req, res) {
 
   if(features && features.features){
     features = features.features;
+    var i = 0;
     features.forEach(feature => {
-      findParts(retval, features, 0);
+      retval.push(findParts(features, i, year));
+      i += 1;
     });
   }
-  var table = [];
-  while(ticker < max_tick){
-    console.log(retval.length);
-    ticker += 1;
-  }
-  retval.forEach(item => {
-    element = (Math.round(item.properties['VYMERA'] * 100) / 100)
-  });
-  res.send(retval);
+  
+  var final_items_arr = [];
 
+  retval.forEach(p => {
+    p.then((body) => {
+      if(body){
+      try {
+        var json_body = JSON.parse(body);
+
+        if(json_body && json_body.features){
+          json_body.features.forEach(feature => {
+            var new_item = {
+              ziadatel: "", 
+              rok: feature.properties['ROK'], 
+              ico: "",
+              lokalita:feature.properties['LOKALITA'],
+              diel: feature.properties['ZKODKD'],
+              kultura: feature.properties['KULTURA'],
+              vymera: (Math.round(feature.properties['VYMERA'] * 100) / 100),
+              feature: [feature]
+            }
+            final_items_arr.push(new_item);
+          });
+        }
+      } catch (error) {
+        console.log("PARSING obce - error occurred." );
+        throw error;
+      }
+      }
+      setHeaders(res);
+      res.send(final_items_arr);
+    });
+  });
 });
 
-function findParts(retval, features, i) {
-  console.log("call " + i);
+async function findParts(features, i, year) {
 	if (features.length > 0 && features.length > i) {
 		var municipality_name = features[i].attributes.NM2;
 	
     console.log('Requesting parts for ' + municipality_name);
   
-    var res_body;
-
-    var form = {
-        geometry: JSON.stringify(features[i].geometry),
-        geometryType: 'esriGeometryPolygon',
-        outFields: '*',
-        inSR: 'geojson:0,1,3,4,5,6,7,8,9,10,12,24,27,30',
-        f: 'geojson'
-    };
-    
-    var formData = querystring.stringify(form);
-    var contentLength = formData.length;
-
-    rq({
-        headers: {
-          'Content-Length': contentLength,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        uri: 'https://portal.vupop.sk/arcgis/rest/services/LPIS/Kulturne_diely/MapServer/0/query',
-        body: formData,
-        method: 'POST'
-      }, function (err, res, body) {
-        console.log("done");
-           retval.push(body);
-           findParts(retval, features, i + 1);
-            
-    });
-    // retval.push(rest_client.findPolygonsPost(features[i]));
-				
-		
+    let a = await rest_client.findPolygonsPost(features[i], year);
+   
+    return a;
   }
 }
 
