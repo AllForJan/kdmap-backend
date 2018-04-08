@@ -61,8 +61,6 @@ app.get('/findByIcoAndYear', function (req, res) {
 
         console.log("VUPOP: calling for " + gis_lokalita_diely.length);
         for (var i = 1; i < gis_lokalita_diely.length + 1; i += batch_size) {
-          console.log(i + "|" + i * batch_size);
-          console.log(gis_lokalita_diely.slice(i, i * batch_size));
           var batch_arr = rest_client.findPolygonsGet({ hist_layer_year: year, lokalita_diely: gis_lokalita_diely.slice(i - 1, i * batch_size) }, rest_client.TERM_ICO_YEAR);
 
           if (batch_arr && batch_arr.features) {
@@ -81,14 +79,17 @@ app.get('/findByIcoAndYear', function (req, res) {
             } else {
               element.feature = [];
             }
-          })
+          });
+          setHeaders(res);
+          res.send(retval);
+          res.end();
         }
-
       });
+    } else {
+      setHeaders(res);
+      res.send(retval);
+      res.end();
     }
-    setHeaders(res);
-    res.send(retval);
-    res.end();
   }
 });
 
