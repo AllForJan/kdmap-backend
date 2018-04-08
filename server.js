@@ -139,7 +139,6 @@ app.get('/findByPlace', function (req, res) {
             }
           } catch (error) {
             console.log("PARSING obce - error occurred.");
-            throw error;
           }
         }
         setHeaders(res);
